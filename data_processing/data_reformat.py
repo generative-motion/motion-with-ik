@@ -1,87 +1,6 @@
-"""
-COPY AND PASTED FROM BLENDER FILE
-"""
-
-import bpy
-from bpy import context as C
-from mathutils import Euler
-import mathutils
-from math import pi
-import math
-
 import time
 import numpy as np
-import os
 import json
-
-def create_object(position, id):
-    bpy.ops.object.empty_add(type='PLAIN_AXES', location=position)
-
-    # store the created Empty in a variable for further manipulation
-    new_empty = bpy.context.object
-    new_empty.name = f"{id}"  # Rename the Empty
-    #rotate_about_world_origin(new_empty, (3,0,0))
-    return new_empty
-    
-    
-def rotate_about_world_origin(x, rotation):
-    rot_mat = Euler(rotation).to_matrix().to_4x4()
-    x.matrix_world = rot_mat @ x.matrix_world
-    
-
-def move_bone(bone_name, amount):
-    # Enter pose mode so rig can be modified
-    bpy.ops.object.mode_set(mode='POSE')
-
-    # Specify the armature object
-    armature = bpy.data.objects['rig1']
-
-    # Specify the bone
-    bone = armature.pose.bones[bone_name]
-
-    # Set the bone's rotation mode to Euler XYZ, if not already
-    bone.rotation_mode = 'XYZ'
-    bone.location[2] += amount[0]
-    bone.location[1] += amount[1]
-    bone.location[0] += amount[2]
-
-
-def test_movement(iterations):
-    times = np.zeros((iterations,))
-    
-    for i in range(iterations):
-
-        move_bone('footcontrol.l', [0, -0.5, 0.5])
-
-        start_time = time.time()
-        bpy.context.view_layer.update()
-        end_time = time.time()
-        ik_time = end_time - start_time
-
-        move_bone('footcontrol.l', [0, 0.5, -0.5])
-        bpy.context.view_layer.update()
-        
-        times[i] = ik_time
-        
-    return times
-
-
-#times = test_movement(1000)
-#print(f'average solve time: {np.mean(times)*1000} ms, std {np.std(times)*1000} ms')
-
-
-
-
-def visualize(all_global_positions, sequence):
-    for frame in range(all_global_positions.shape[1]):
-        for joint in range(all_global_positions.shape[2]):
-            x = bpy.data.objects[f"joint.{joint}"]
-            x.location = all_global_positions[sequence, frame, joint]
-            bpy.context.view_layer.update()
-            #rotate_about_world_origin(x, (pi/2,0,0))
-            #bpy.context.view_layer.update()
-            x.keyframe_insert(data_path="location", frame=frame)
-
 
 def read_input(file_path):
     with open(file_path) as json_data:
@@ -89,20 +8,14 @@ def read_input(file_path):
 
     return d['positions'], d['rotations'], d['parents'], d['foot_contact']
 
-def init_armature():
-    for i in range(22):
-        create_object((0,0,0), f"joint.{i}")
-
 def main(file_path):
     # reading all data
-    init_armature()
     all_orig_positions, all_orig_rotations, parents, all_foot_contact = read_input(file_path)
     all_orig_positions = np.array(all_orig_positions)
     all_orig_rotations = np.array(all_orig_rotations)
     print(f'original positions shape: {all_orig_positions.shape}')
 
     all_global_positions, all_global_rotations = conv_rig(all_orig_positions, all_orig_rotations, parents)
-    visualize(all_global_positions, 0)
     
     # creating new representation
     all_new_positions, all_new_rotations = representation1(all_global_positions)
