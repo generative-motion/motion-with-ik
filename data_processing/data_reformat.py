@@ -1,3 +1,12 @@
+import numpy as np
+import os
+import json
+import torch
+import math
+import time
+
+from scipy.spatial.transform import Rotation as R
+
 def read_input(file_path):
     with open(file_path) as json_data:
         d = json.load(json_data)
@@ -14,9 +23,9 @@ def main(file_path):
     all_global_positions, all_global_rotations = conv_rig(all_orig_positions, all_orig_rotations, parents)
     
     # creating new representation
-    all_new_positions, all_new_rotations = representation1(all_global_positions)
-    print(f'rep1 first instance: \nloc:\n{all_new_positions[0, 0]}, \n\nrot: \n{all_new_rotations[0, 0]}')
-    return all_new_positions, all_new_rotations
+    all_new_rotations = representation1(all_global_positions)
+    print(f'rep1 first instance: \nrot: \n{all_new_rotations[0, 0]}')
+    return all_new_rotations
     
     
 def get_bone_mapping():
