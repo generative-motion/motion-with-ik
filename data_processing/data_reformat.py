@@ -1,7 +1,3 @@
-import time
-import numpy as np
-import json
-
 def read_input(file_path):
     with open(file_path) as json_data:
         d = json.load(json_data)
@@ -20,6 +16,7 @@ def main(file_path):
     # creating new representation
     all_new_positions, all_new_rotations = representation1(all_global_positions)
     print(f'rep1 first instance: \nloc:\n{all_new_positions[0, 0]}, \n\nrot: \n{all_new_rotations[0, 0]}')
+    return all_new_positions, all_new_rotations
     
     
 def get_bone_mapping():
@@ -36,17 +33,22 @@ def get_bone_mapping():
         'right shoulder': 19,
         'left hip': 1,
         'right hip': 5,
-        'head': 13
+        'head': 13,
+        'root': 0
     }
     return bone_mapping
 
 
-def get_euler_from_vector(vec):
-    vec = vec / np.linalg.norm(vec)
+def get_euler_from_vector(vec, keep_length = False):
+    length = np.linalg.norm(vec)
+    vec = vec / length
     
     yaw = np.arctan2(vec[1], vec[0])
     pitch = np.arcsin(-vec[2])
     roll = 0
+
+    if keep_length:
+        roll = length
     
     return [yaw, pitch, roll]
     
@@ -57,39 +59,41 @@ def representation1(all_global_positions):
     - One loc/rot for hands and feet as IK control. (4, 4)
     - Two shoulder and two hip endpoints, location only. (4, 0)
     - One head location (1, 0)
-    Final structure: (7 location, 4 rotation)
+    Final structure: (9 location, 4 rotation)
+    condensed into 13 rotations
     '''
-    new_locations = 9
-    new_rotations = 4
-    all_new_positions = np.zeros((all_global_positions.shape[0], all_global_positions.shape[1], new_locations, 3))
-    all_new_rotations = np.zeros((all_global_positions.shape[0], all_global_positions.shape[1], new_rotations, 3))
+    #new_locations = 9
+    MAX_REACH = 150
+    NEW_ROTATIONS = 13
+    #all_new_positions = np.zeros((all_global_positions.shape[0], all_global_positions.shape[1], new_locations, 3))
+    all_new_rotations = np.zeros((all_global_positions.shape[0], all_global_positions.shape[1], NEW_ROTATIONS, 3))
     bm = get_bone_mapping()
     
     for sequence in range(all_global_positions.shape[0]):
         for frame in range(all_global_positions.shape[1]):
             # hands
             #print(f"hands: {all_global_positions[sequence, frame, (bm['left hand'][0])]}")
-            all_new_positions[sequence, frame, 0] = all_global_positions[sequence, frame, (bm['left hand'][0])]
-            all_new_rotations[sequence, frame, 0] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left hand'][2])] - all_global_positions[sequence, frame, (bm['left hand'][1])])
+            all_new_rotations[sequence, frame, 0] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left hand'][0])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 1] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left hand'][2])] - all_global_positions[sequence, frame, (bm['left hand'][1])])
     
-            all_new_positions[sequence, frame, 1] = all_global_positions[sequence, frame, (bm['right hand'][0])]
-            all_new_rotations[sequence, frame, 1] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right hand'][2])] - all_global_positions[sequence, frame, (bm['right hand'][1])])
+            all_new_rotations[sequence, frame, 2] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right hand'][0])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 3] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right hand'][2])] - all_global_positions[sequence, frame, (bm['right hand'][1])])
     
             # feet
-            all_new_positions[sequence, frame, 2] = all_global_positions[sequence, frame, (bm['left foot'][0])]
-            all_new_rotations[sequence, frame, 2] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left foot'][2])] - all_global_positions[sequence, frame, (bm['left foot'][1])])
+            all_new_rotations[sequence, frame, 4] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left foot'][0])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 5] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left foot'][2])] - all_global_positions[sequence, frame, (bm['left foot'][1])])
     
-            all_new_positions[sequence, frame, 3] = all_global_positions[sequence, frame, (bm['right foot'][0])]
-            all_new_rotations[sequence, frame, 3] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right foot'][2])] - all_global_positions[sequence, frame, (bm['right foot'][1])])
+            all_new_rotations[sequence, frame, 6] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right foot'][0])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 7] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right foot'][2])] - all_global_positions[sequence, frame, (bm['right foot'][1])])
     
             # roots and head
-            all_new_positions[sequence, frame, 4] = all_global_positions[sequence, frame, (bm['left shoulder'])]
-            all_new_positions[sequence, frame, 5] = all_global_positions[sequence, frame, (bm['right shoulder'])]
-            all_new_positions[sequence, frame, 6] = all_global_positions[sequence, frame, (bm['left hip'])]
-            all_new_positions[sequence, frame, 7] = all_global_positions[sequence, frame, (bm['right hip'])]
-            all_new_positions[sequence, frame, 8] = all_global_positions[sequence, frame, (bm['head'])]
+            all_new_rotations[sequence, frame, 8] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left shoulder'])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 9] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right shoulder'])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 10] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['left hip'])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 11] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['right hip'])] - all_global_positions[sequence, frame, (bm['root'])], True)
+            all_new_rotations[sequence, frame, 12] = get_euler_from_vector(all_global_positions[sequence, frame, (bm['head'])] - all_global_positions[sequence, frame, (bm['root'])], True)
             
-    return all_new_positions, all_new_rotations
+    return all_new_rotations
             
     
 
@@ -134,4 +138,4 @@ def fk(lrot, lpos, parents):
 
 #create_object((1,0,0), 'test')
 file_path = "C:\\Users\\eggyr\\OneDrive\\RPI\\S10\\Projects in ML\\final\\lafan1_detail_model_benchmark_5_0-2231.json"
-main(file_path)
+new_locations, new_positions = main(file_path)
