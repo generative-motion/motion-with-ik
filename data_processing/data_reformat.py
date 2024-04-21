@@ -57,18 +57,26 @@ def from_blend_coords(positions):
     positions = positions * 100
     return positions
 
-def get_euler_from_vec_vectorized(vec, keep_length = False):
-    length = np.linalg.norm(vec, axis=-1)
-    vec = vec / length[..., None]
+def asser(b, c):
+    assert(torch.allclose(torch.tensor(b), c))
 
-    yaw = np.arctan2(vec[..., 1], vec[..., 0])
-    pitch = np.arcsin(-vec[..., 2])
-    roll = np.zeros_like(yaw)
+def get_euler_from_vec_vectorized(vec, keep_length = False):
+    dtype = torch.float64
+    device = 'cpu'
+    return get_euler_from_vec_vectorized_torch(torch.tensor(vec, dtype=dtype, device=device), dtype, device, keep_length).cpu().numpy()
+
+def get_euler_from_vec_vectorized_torch(vec2, dtype, device, keep_length = False):
+    length2 = torch.linalg.norm(vec2, axis=-1)
+    vec2 = vec2 / length2[..., None]
+
+    yaw2 = torch.atan2(vec2[..., 1], vec2[..., 0])
+    pitch2 = torch.asin(-vec2[..., 2])
+    roll2 = torch.zeros_like(yaw2, dtype=dtype, device=device)
 
     if keep_length:
-        roll = length * (6 / MAX_LENGTH)
+        roll2 = length2 * (6 / MAX_LENGTH)
 
-    return np.stack([yaw, pitch, roll], axis=-1)
+    return torch.stack([yaw2, pitch2, roll2], axis=-1)
 
 
 def get_vec_from_euler(angle):
@@ -91,26 +99,40 @@ def get_vec_from_euler_vectorized(angle):
     '''
     angle: (..., 3)
     '''
+    dtype = torch.float64
+    device = 'cpu'
+    return get_vec_from_euler_vectorized_torch(torch.tensor(angle, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+def get_vec_from_euler_vectorized_torch(angle, dtype, device):
+    '''
+    angle: (..., 3)
+    '''
     length = angle[..., 2] / (6 / MAX_LENGTH)
     
     mask = length == 0
     length[mask] = 1
         
-    y = np.cos(angle[..., 1]) * np.sin(angle[..., 0])
-    z = np.sin(angle[..., 1])
-    x = np.cos(angle[..., 1]) * np.cos(angle[..., 0])
+    y = torch.cos(angle[..., 1]) * torch.sin(angle[..., 0])
+    z = torch.sin(angle[..., 1])
+    x = torch.cos(angle[..., 1]) * torch.cos(angle[..., 0])
     
     x *= length
     y *= length
     z *= -length
     
-    return np.stack([x, y, z], axis=-1)
+    return torch.stack([x, y, z], axis=-1)
+
 
 def m9dtoeuler(m9d):
-     pitch = -1*np.arcsin(m9d[:, :, 0, 2, 0])
-     roll = np.arctan2( m9d[:, :, 0, 2, 1] / np.cos(pitch) , m9d[:, :, 0, 2, 2] / np.cos(pitch))
-     yaw = np.arctan2( m9d[:, :, 0, 1, 0] / np.cos(pitch) , m9d[:, :, 0, 0, 0] / np.cos(pitch))
-     return np.array(np.stack((yaw, pitch, roll), axis=-1))
+    dtype = torch.float64
+    device = 'cpu'
+    return m9dtoeuler_torch(torch.tensor(m9d, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+def m9dtoeuler_torch(m9d, dtype, device):
+    pitch = -1*torch.asin(m9d[:, :, 0, 2, 0])
+    roll = torch.atan2(m9d[:, :, 0, 2, 1] / torch.cos(pitch) , m9d[:, :, 0, 2, 2] / torch.cos(pitch))
+    yaw = torch.atan2(m9d[:, :, 0, 1, 0] / torch.cos(pitch) , m9d[:, :, 0, 0, 0] / torch.cos(pitch))
+    return torch.stack((yaw, pitch, roll), axis=-1)
 
 def euler_to_matrix_vectorized(euler_angles):
     """
@@ -123,31 +145,47 @@ def euler_to_matrix_vectorized(euler_angles):
     Returns:
         numpy.ndarray: Array of shape (n, 3, 3) containing rotation matrices.
     """
+    dtype = torch.float64
+    device = 'cpu'
+    return euler_to_matrix_vectorized_torch(torch.tensor(euler_angles, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+def euler_to_matrix_vectorized_torch(euler_angles, dtype, device):
+    """
+    Convert multiple sets of Euler angles to rotation matrices using vectorized operations.
+
+    Args:
+        euler_angles (torch.tensor): Array of shape (n, 3) where each row contains
+                                      yaw, pitch, and roll angles in radians.
+
+    Returns:
+        torch.tensor : Array of shape (n, 3, 3) containing rotation matrices.
+    """
+    # Unpack Euler angles
     yaw, pitch, roll = euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2]
 
     # Trigonometric calculations
-    cy, sy = np.cos(yaw), np.sin(yaw)
-    cp, sp = np.cos(pitch), np.sin(pitch)
-    cr, sr = np.cos(roll), np.sin(roll)
+    cy, sy = torch.cos(yaw), torch.sin(yaw)
+    cp, sp = torch.cos(pitch), torch.sin(pitch)
+    cr, sr = torch.cos(roll), torch.sin(roll)
 
     # Component matrices, vectorized across the first dimension
-    Rz = np.array([[cy, -sy, np.zeros_like(cy)],
-                   [sy, cy, np.zeros_like(cy)],
-                   [np.zeros_like(cy), np.zeros_like(cy), np.ones_like(cy)]])
-    Ry = np.array([[cp, np.zeros_like(cp), sp],
-                   [np.zeros_like(cp), np.ones_like(cp), np.zeros_like(cp)],
-                   [-sp, np.zeros_like(cp), cp]])
-    Rx = np.array([[np.ones_like(cr), np.zeros_like(cr), np.zeros_like(cr)],
-                   [np.zeros_like(cr), cr, -sr],
-                   [np.zeros_like(cr), sr, cr]])
+    Rz = torch.stack([torch.stack([cy, -sy, torch.zeros_like(cy, dtype=dtype, device=device)], dim=0),
+                       torch.stack([sy, cy, torch.zeros_like(cy, dtype=dtype, device=device)], dim=0),
+                       torch.stack([torch.zeros_like(cy, dtype=dtype, device=device), torch.zeros_like(cy, dtype=dtype, device=device), torch.ones_like(cy, dtype=dtype, device=device)], dim=0)], dim=0)
+    Ry = torch.stack([torch.stack([cp, torch.zeros_like(cp, dtype=dtype, device=device), sp], dim=0),
+                       torch.stack([torch.zeros_like(cp, dtype=dtype, device=device), torch.ones_like(cp, dtype=dtype, device=device), torch.zeros_like(cp, dtype=dtype, device=device)], dim=0),
+                       torch.stack([-sp, torch.zeros_like(cp, dtype=dtype, device=device), cp], dim=0)], dim=0)
+    Rx = torch.stack([torch.stack([torch.ones_like(cr, dtype=dtype, device=device), torch.zeros_like(cr, dtype=dtype, device=device), torch.zeros_like(cr, dtype=dtype, device=device)], dim=0),
+                       torch.stack([torch.zeros_like(cr, dtype=dtype, device=device), cr, -sr], dim=0),
+                       torch.stack([torch.zeros_like(cr, dtype=dtype, device=device), sr, cr], dim=0)], dim=0)
 
     # Transpose to shape the matrices correctly for matrix multiplication
-    Rz = np.transpose(Rz, (2, 0, 1))
-    Ry = np.transpose(Ry, (2, 0, 1))
-    Rx = np.transpose(Rx, (2, 0, 1))
+    Rz = Rz.permute(2, 0, 1)
+    Ry = Ry.permute(2, 0, 1)
+    Rx = Rx.permute(2, 0, 1)
 
     # Matrix multiplication for all sets, np.einsum can also be used for clarity
-    R = Rz @ Ry @ Rx  # Matrix multiplication over last two dimensions
+    R = Rz @ Ry @ Rx
 
     return R
 
@@ -269,8 +307,24 @@ def representation1(rep0, root_angles):
     Final structure: (9 location, 4 rotation)
     condensed into 13 rotations
     '''
+    dtype = torch.float64
+    device = 'cpu'
+    return representation1_torch(torch.tensor(rep0, dtype=dtype, device=device), torch.tensor(root_angles, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+
+def representation1_torch(rep0, root_angles, dtype, device):
+    '''
+    rep0 represents the original global positions of all joints
+
+    Representation1:
+    - One loc/rot for hands and feet as IK control. (4, 4)
+    - Two shoulder and two hip endpoints, location only. (4, 0)
+    - One head location (1, 0)
+    Final structure: (9 location, 4 rotation)
+    condensed into 13 rotations
+    '''
     INDICES_IN_USE = 22
-    rep1 = np.zeros((rep0.shape[0], rep0.shape[1], INDICES_IN_USE, 3))
+    rep1 = torch.zeros((rep0.shape[0], rep0.shape[1], INDICES_IN_USE, 3), dtype=dtype, device=device)
     bm = get_bone_mapping()
     rm1 = get_representation1_mapping()
     
@@ -279,60 +333,69 @@ def representation1(rep0, root_angles):
     root_location = rep0[:, :, bm['root']]
 
     # elbow and knee pull targets are stored relative to the hands/foot, not the root!
-    # hands
-    rep1[:,:, rm1['left hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left hand']] - root_location, True)
+    rep1[:,:, rm1['left hand']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['left hand']] - root_location, dtype, device, True)
     left_arm_mid = 0.5 * rep0[:,:, bm['left hand']] + 0.5 * rep0[:,:, bm['left shoulder']]
-    rep1[:,:, rm1['left elbow']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['left elbow']] - left_arm_mid) + left_arm_mid - rep0[:,:, bm['left hand']], True)
+    rep1[:,:, rm1['left elbow']] = get_euler_from_vec_vectorized_torch(pull_target_dist_multiplier * (rep0[:,:, bm['left elbow']] - left_arm_mid) + left_arm_mid - rep0[:,:, bm['left hand']], dtype, device, True)
 
-    rep1[:,:, rm1['right hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right hand']] - root_location, True)
+    # hands
+    rep1[:,:, rm1['right hand']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['right hand']] - root_location, dtype, device, True)
     right_arm_mid = 0.5 * rep0[:,:, bm['right hand']] + 0.5 * rep0[:,:, bm['right shoulder']]
-    rep1[:,:, rm1['right elbow']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['right elbow']] - right_arm_mid) + right_arm_mid - rep0[:,:, bm['right hand']], True)
+    rep1[:,:, rm1['right elbow']] = get_euler_from_vec_vectorized_torch(pull_target_dist_multiplier * (rep0[:,:, bm['right elbow']] - right_arm_mid) + right_arm_mid - rep0[:,:, bm['right hand']], dtype, device, True)
 
     # feet
-    rep1[:,:, rm1['left foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left foot']] - root_location, True)
+    rep1[:,:, rm1['left foot']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['left foot']] - root_location, dtype, device, True)
     left_leg_mid = 0.5 * rep0[:,:, bm['left foot']] + 0.5 * rep0[:,:, bm['left hip']]
-    rep1[:,:, rm1['left knee']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['left knee']] - left_leg_mid) + left_leg_mid - rep0[:,:, bm['left foot']], True)
-
-    rep1[:,:, rm1['right foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right foot']] - root_location, True)
+    rep1[:,:, rm1['left knee']] = get_euler_from_vec_vectorized_torch(pull_target_dist_multiplier * (rep0[:,:, bm['left knee']] - left_leg_mid) + left_leg_mid - rep0[:,:, bm['left foot']], dtype, device, True)
+    
+    rep1[:,:, rm1['right foot']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['right foot']] - root_location, dtype, device, True)
     right_leg_mid = 0.5 * rep0[:,:, bm['right foot']] + 0.5 * rep0[:,:, bm['right hip']]
-    rep1[:,:, rm1['right knee']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['right knee']] - right_leg_mid) + right_leg_mid - rep0[:,:, bm['right foot']], True)
+    rep1[:,:, rm1['right knee']] = get_euler_from_vec_vectorized_torch(pull_target_dist_multiplier * (rep0[:,:, bm['right knee']] - right_leg_mid) + right_leg_mid - rep0[:,:, bm['right foot']], dtype, device, True)
 
     # joints and root
-    rep1[:,:, rm1['spine top']] = get_euler_from_vec_vectorized(rep0[:,:, bm['spine top']] - root_location, True)
-    rep1[:,:, rm1['head']] = get_euler_from_vec_vectorized(rep0[:,:, bm['head']] - root_location, True)
-    rep1[:,:, rm1['root']] = get_euler_from_vec_vectorized(root_location, True)
-    rep1[:,:, rm1['root rotation']] = m9dtoeuler(root_angles)
+    rep1[:,:, rm1['spine top']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['spine top']] - root_location, dtype, device, True)
+    rep1[:,:, rm1['head']] = get_euler_from_vec_vectorized_torch(rep0[:,:, bm['head']] - root_location, dtype, device, True)
+    rep1[:,:, rm1['root']] = get_euler_from_vec_vectorized_torch(root_location, dtype, device, True)
+    rep1[:,:, rm1['root rotation']] = m9dtoeuler_torch(root_angles, dtype, device)
     return rep1
 
     
 def representation1_backwards_partial(rep1):
+    dtype = torch.float64
+    device = 'cpu'
+    return representation1_backwards_partial_torch(torch.tensor(rep1, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+def representation1_backwards_partial_torch(rep1, dtype, device):
     INDICES_IN_USE = 22
-    rep0 = np.zeros((rep1.shape[0], rep1.shape[1], INDICES_IN_USE, 3))
+    rep0 = torch.zeros((rep1.shape[0], rep1.shape[1], INDICES_IN_USE, 3), dtype=dtype, device=device)
     bm = get_bone_mapping()
     rm1 = get_representation1_mapping()
     
-    root_location = get_vec_from_euler_vectorized(rep1[:, :, rm1['root']])
+    root_location = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['root']], dtype, device)
 
     #hands
-    rep0[:, :, bm['left hand']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['left hand']]) + root_location
-    rep0[:, :, bm['right hand']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['right hand']]) + root_location
+    rep0[:, :, bm['left hand']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['left hand']], dtype, device) + root_location
+    rep0[:, :, bm['right hand']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['right hand']], dtype, device) + root_location
 
-    rep0[:, :, bm['left foot']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['left foot']]) + root_location
-    rep0[:, :, bm['right foot']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['right foot']]) + root_location
+    rep0[:, :, bm['left foot']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['left foot']], dtype, device) + root_location
+    rep0[:, :, bm['right foot']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['right foot']], dtype, device) + root_location
 
-    rep0[:, :, bm['head']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['head']]) + root_location
-    rep0[:, :, bm['spine top']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['spine top']]) + root_location
+    rep0[:, :, bm['head']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['head']], dtype, device) + root_location
+    rep0[:, :, bm['spine top']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['spine top']], dtype, device) + root_location
     rep0[:, :, bm['root']] = root_location
             
     return rep0
 
 def representation1_backwards_rot(rep1):
+    dtype = torch.float64
+    device = 'cpu'
+    return representation1_backwards_rot_torch(torch.tensor(rep1, dtype=dtype, device=device), dtype, device).cpu().numpy()
+
+def representation1_backwards_rot_torch(rep1, dtype, device):
     rm1 = get_representation1_mapping()
     root_rot_euler = rep1[:, :, rm1["root rotation"]].reshape(-1, 3)
-    root_rot_9D = euler_to_matrix_vectorized(root_rot_euler).reshape(rep1.shape[0], rep1.shape[1], 3, 3)
+    root_rot_9D = euler_to_matrix_vectorized_torch(root_rot_euler, dtype, device).reshape(rep1.shape[0], rep1.shape[1], 3, 3)
 
     return root_rot_9D
-
 
 def get_global_root_rot_from_rep1(rep1):
     rm1 = get_representation1_mapping()
