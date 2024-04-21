@@ -358,9 +358,9 @@ def representation1backwards(rep1, keyframe):
     return rep0
 """
 
-
-file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
-save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
-file_path = "..\\..\\..\\final\\"
-make_converted_json(file_path + file_name, file_path + save_name)
+if __name__ == "__main__":
+    file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
+    save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
+    file_path = "..\\..\\..\\final\\"
+    make_converted_json(file_path + file_name, file_path + save_name)
 
