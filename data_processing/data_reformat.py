@@ -26,35 +26,37 @@ def flip_coordinate_axis(positions, axis):
     positions[..., axis] *= -1
     return positions
 
+
 def to_blend_coords(positions):
     positions = swap_coordinate_axes(positions, 1, 2)
     positions = swap_coordinate_axes(positions, 0, 1)
-    positions = flip_coordinate_axis(positions, 1)
+    #positions = flip_coordinate_axis(positions, 1)
     positions = positions * 0.01
     return positions
     
+    
 def from_blend_coords(positions):
-    positions = flip_coordinate_axis(positions, 1)
+    #positions = flip_coordinate_axis(positions, 1)
     positions = swap_coordinate_axes(positions, 0, 1)
     positions = swap_coordinate_axes(positions, 1, 2)
     positions = positions * 100
     return positions
 
 def get_euler_from_vec(vec, keep_length = False):
-    length = np.linalg.norm(vec)
-    vec = vec / length
-    
-    yaw = np.arctan2(vec[1], vec[0])
-    pitch = np.arcsin(-vec[2])
-    roll = 0
+    length = np.linalg.norm(vec, axis=-1)
+    vec = vec / length[..., None]
+
+    yaw = np.arctan2(vec[..., 1], vec[..., 0])
+    pitch = np.arcsin(-vec[..., 2])
+    roll = np.zeros_like(yaw)
 
     if keep_length:
         roll = length * (6 / MAX_LENGTH)
-    
-    return [yaw, pitch, roll]
+
+    return np.stack([yaw, pitch, roll], axis=-1)
+
 
 def get_vec_from_euler(angle):
-
     length = angle[2] / (6 / MAX_LENGTH)
     
     if length == 0:
@@ -147,9 +149,11 @@ def get_representation1_mapping():
         'right knee': 7,
         'head': 8,
         'spine top': 9,
-        'root': 10
+        'root': 10,
+        'root rotation': 11
     }
     return rm1
+
 
 def make_converted_json(file_path, save_path):
     # reading all data
@@ -160,6 +164,8 @@ def make_converted_json(file_path, save_path):
 
     all_global_positions, all_global_rotations = to_global(all_orig_positions, all_orig_rotations, parents)
     all_global_positions = to_blend_coords(all_global_positions)
+    #visualize(all_global_positions, 0)
+    
     print(f'CONVERTED ORIGINAL DATA TO GLOBAL \n\nsample data: {all_orig_positions[0,0]}')
     
     # creating new representation
@@ -175,7 +181,7 @@ def make_converted_json(file_path, save_path):
 MAIN CONVERSION MODULES
 """
 
-def representation1(rep0):
+def representation1(rep0, root_angles):
     '''
     rep0 represents the original global positions of all joints
 
@@ -191,31 +197,37 @@ def representation1(rep0):
     bm = get_bone_mapping()
     rm1 = get_representation1_mapping()
 
-    # seq is sequence of frames
-    for seq in range(rep0.shape[0]):
-        for frame in range(rep0.shape[1]):
-            root_location = rep0[seq, frame, bm['root']]
+    root_location = rep0[:, :, bm['root']]
 
-            # hands
-            rep1[seq, frame, rm1['left hand']] = get_euler_from_vec(rep0[seq, frame, bm['left hand']] - root_location, True)
-            rep1[seq, frame, rm1['left elbow']] = get_euler_from_vec(2 * rep0[seq, frame, bm['left elbow']] - rep0[seq, frame, bm['left hand']] - rep0[seq, frame, bm['left shoulder']] - root_location, True)
-    
-            rep1[seq, frame, rm1['right hand']] = get_euler_from_vec(rep0[seq, frame, bm['right hand']] - root_location, True)
-            rep1[seq, frame, rm1['right elbow']] = get_euler_from_vec(2 * rep0[seq, frame, bm['right elbow']] - rep0[seq, frame, bm['right hand']] - rep0[seq, frame, bm['right shoulder']] - root_location, True)
-    
-            # feet
-            rep1[seq, frame, rm1['left foot']] = get_euler_from_vec(rep0[seq, frame, bm['left foot']] - root_location, True)
-            rep1[seq, frame, rm1['left knee']] = get_euler_from_vec(2 * rep0[seq, frame, bm['left knee']] - rep0[seq, frame, bm['left foot']] - rep0[seq, frame, bm['left hip']] - root_location, True)
-    
-            rep1[seq, frame, rm1['right foot']] = get_euler_from_vec(rep0[seq, frame, bm['right foot']] - root_location, True)
-            rep1[seq, frame, rm1['right knee']] = get_euler_from_vec(2 * rep0[seq, frame, bm['right knee']] - rep0[seq, frame, bm['right foot']] - rep0[seq, frame, bm['right hip']] - root_location, True)
-    
-            # joints and root
-            rep1[seq, frame, rm1['spine top']] = get_euler_from_vec(rep0[seq, frame, bm['spine top']] - root_location, True)
-            rep1[seq, frame, rm1['head']] = get_euler_from_vec(rep0[seq, frame, bm['head']] - root_location, True)
-            rep1[seq, frame, rm1['root']] = get_euler_from_vec(root_location, True)
+    # hands
+    rep1[:,:, rm1['left hand']] = get_euler_from_vec(rep0[:,:, bm['left hand']] - root_location, True)
+    rep1[:,:, rm1['left elbow']] = get_euler_from_vec(2 * rep0[:,:, bm['left elbow']] - 0.5 * rep0[:,:, bm['left hand']] - 0.5 * rep0[:,:, bm['left shoulder']] - root_location, True)
+
+    rep1[:,:, rm1['right hand']] = get_euler_from_vec(rep0[:,:, bm['right hand']] - root_location, True)
+    rep1[:,:, rm1['right elbow']] = get_euler_from_vec(2 * rep0[:,:, bm['right elbow']] - 0.5 * rep0[:,:, bm['right hand']] - 0.5 * rep0[:,:, bm['right shoulder']] - root_location, True)
+
+    # feet
+    rep1[:,:, rm1['left foot']] = get_euler_from_vec(rep0[:,:, bm['left foot']] - root_location, True)
+    rep1[:,:, rm1['left knee']] = get_euler_from_vec(2 * rep0[:,:, bm['left knee']] - 0.5 * rep0[:,:, bm['left foot']] - 0.5 * rep0[:,:, bm['left hip']] - root_location, True)
+
+    rep1[:,:, rm1['right foot']] = get_euler_from_vec(rep0[:,:, bm['right foot']] - root_location, True)
+    rep1[:,:, rm1['right knee']] = get_euler_from_vec(2 * rep0[:,:, bm['right knee']] - 0.5 * rep0[:,:, bm['right foot']] - 0.5 * rep0[:,:, bm['right hip']] - root_location, True)
+
+    # joints and root
+    rep1[:,:, rm1['spine top']] = get_euler_from_vec(rep0[:,:, bm['spine top']] - root_location, True)
+    rep1[:,:, rm1['head']] = get_euler_from_vec(rep0[:,:, bm['head']] - root_location, True)
+    rep1[:,:, rm1['root']] = get_euler_from_vec(root_location, True)
+    rep1[:,:, rm1['root rotation']] = m9dtoeuler(root_angles)
             
     return rep1
+
+
+def m9dtoeuler(m9d):
+     pitch = -1*np.arcsin(m9d[:, :, 0, 2, 0])
+     roll = np.arctan2( m9d[:, :, 0, 2, 1] / np.cos(pitch) , m9d[:, :, 0, 2, 2] / np.cos(pitch))
+     yaw = np.arctan2( m9d[:, :, 0, 1, 0] / np.cos(pitch) , m9d[:, :, 0, 0, 0] / np.cos(pitch))
+     return np.array(np.stack((yaw, pitch, roll), axis=-1))
+
     
 def representation1_backwards_partial(rep1):
     INDICES_IN_USE = 22
@@ -242,7 +254,7 @@ def representation1_backwards_partial(rep1):
 
 
 """
-def representation1_backwards(rep1, keyframe):
+def representation1backwards(rep1, keyframe):
     INDICES_IN_USE = 22
     rep0 = np.zeros((rep1.shape[0], rep1.shape[1], INDICES_IN_USE, 3))
     bm = get_bone_mapping()
@@ -282,7 +294,8 @@ def representation1_backwards(rep1, keyframe):
             spine_top.location = get_vec_from_euler(rep1[sequence, frame, rm1['spine top']]) + root_location
 
             root_joint = bpy.data.objects[f"root"]
-            spine_top.location = root_location
+            root_joint.location = root_location
+            root_joint.rotation_euler = Euler(rep1[sequence, frame, rm1['root rotation']], 'XYZ')
             
             bpy.context.view_layer.update()
             
@@ -303,6 +316,7 @@ def representation1_backwards(rep1, keyframe):
                 head.keyframe_insert(data_path="location", frame=frame)
                 spine_top.keyframe_insert(data_path="location", frame=frame)
                 root_joint.keyframe_insert(data_path="location", frame=frame)
+                root_joint.keyframe_insert(data_path="rotation_euler", frame=frame)
             
     return rep0
 """
