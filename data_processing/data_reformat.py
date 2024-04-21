@@ -1,6 +1,7 @@
 # %%
 import numpy as np
 import json
+import pathlib
 
 MAX_LENGTH = 2
 
@@ -12,6 +13,18 @@ def read_input(file_path):
         d = json.load(json_data)
 
     return d['positions'], d['rotations'], d['parents'], d['foot_contact']
+
+def format_data(file_path):
+    # reading all data
+    all_orig_positions, all_orig_rotations, parents, all_foot_contact = read_input(file_path)
+    all_orig_positions = np.array(all_orig_positions)
+    all_orig_rotations = np.array(all_orig_rotations)
+    print(f'FINSIHED IMPORTING DATA \n\noriginal positions shape: {all_orig_positions.shape}')
+
+    all_global_positions, all_global_rotations = to_global(all_orig_positions, all_orig_rotations, parents)
+    all_global_positions = to_blend_coords(all_global_positions)
+    print(f'CONVERTED ORIGINAL DATA TO GLOBAL')
+    return all_global_positions, all_global_rotations
 
 
 """
@@ -92,6 +105,11 @@ def get_vec_from_euler_vectorized(angle):
     
     return np.stack([x, y, z], axis=-1)
 
+def m9dtoeuler(m9d):
+     pitch = -1*np.arcsin(m9d[:, :, 0, 2, 0])
+     roll = np.arctan2( m9d[:, :, 0, 2, 1] / np.cos(pitch) , m9d[:, :, 0, 2, 2] / np.cos(pitch))
+     yaw = np.arctan2( m9d[:, :, 0, 1, 0] / np.cos(pitch) , m9d[:, :, 0, 0, 0] / np.cos(pitch))
+     return np.array(np.stack((yaw, pitch, roll), axis=-1))
 
 """
 HELPERS
@@ -176,17 +194,7 @@ def get_representation1_mapping():
 
 
 def make_converted_json(file_path, save_path):
-    # reading all data
-    all_orig_positions, all_orig_rotations, parents, all_foot_contact = read_input(file_path)
-    all_orig_positions = np.array(all_orig_positions)
-    all_orig_rotations = np.array(all_orig_rotations)
-    print(f'FINSIHED IMPORTING DATA \n\noriginal positions shape: {all_orig_positions.shape}')
-
-    all_global_positions, all_global_rotations = to_global(all_orig_positions, all_orig_rotations, parents)
-    all_global_positions = to_blend_coords(all_global_positions)
-    #visualize(all_global_positions, 0)
-    
-    print(f'CONVERTED ORIGINAL DATA TO GLOBAL \n\nsample data: {all_orig_positions[0,0]}')
+    all_global_positions, all_global_rotations = format_data(file_path)
     
     # creating new representation
     rep1 = representation1(all_global_positions, all_global_rotations)
@@ -223,37 +231,36 @@ def representation1(rep0, root_angles):
     rep1 = np.zeros((rep0.shape[0], rep0.shape[1], INDICES_IN_USE, 3))
     bm = get_bone_mapping()
     rm1 = get_representation1_mapping()
+    
+    pull_target_dist_multiplier = 4
 
     root_location = rep0[:, :, bm['root']]
 
+    # elbow and knee pull targets are stored relative to the hands/foot, not the root!
     # hands
     rep1[:,:, rm1['left hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left hand']] - root_location, True)
-    rep1[:,:, rm1['left elbow']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['left elbow']] - rep0[:,:, bm['left hand']] - rep0[:,:, bm['left shoulder']] - root_location, True)
+    left_arm_mid = 0.5 * rep0[:,:, bm['left hand']] + 0.5 * rep0[:,:, bm['left shoulder']]
+    rep1[:,:, rm1['left elbow']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['left elbow']] - left_arm_mid) + left_arm_mid - rep0[:,:, bm['left hand']], True)
 
     rep1[:,:, rm1['right hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right hand']] - root_location, True)
-    rep1[:,:, rm1['right elbow']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['right elbow']] - rep0[:,:, bm['right hand']] - rep0[:,:, bm['right shoulder']] - root_location, True)
+    right_arm_mid = 0.5 * rep0[:,:, bm['right hand']] + 0.5 * rep0[:,:, bm['right shoulder']]
+    rep1[:,:, rm1['right elbow']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['right elbow']] - right_arm_mid) + right_arm_mid - rep0[:,:, bm['right hand']], True)
 
     # feet
     rep1[:,:, rm1['left foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left foot']] - root_location, True)
-    rep1[:,:, rm1['left knee']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['left knee']] - rep0[:,:, bm['left foot']] - rep0[:,:, bm['left hip']] - root_location, True)
+    left_leg_mid = 0.5 * rep0[:,:, bm['left foot']] + 0.5 * rep0[:,:, bm['left hip']]
+    rep1[:,:, rm1['left knee']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['left knee']] - left_leg_mid) + left_leg_mid - rep0[:,:, bm['left foot']], True)
 
     rep1[:,:, rm1['right foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right foot']] - root_location, True)
-    rep1[:,:, rm1['right knee']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['right knee']] - rep0[:,:, bm['right foot']] - rep0[:,:, bm['right hip']] - root_location, True)
+    right_leg_mid = 0.5 * rep0[:,:, bm['right foot']] + 0.5 * rep0[:,:, bm['right hip']]
+    rep1[:,:, rm1['right knee']] = get_euler_from_vec_vectorized(pull_target_dist_multiplier * (rep0[:,:, bm['right knee']] - right_leg_mid) + right_leg_mid - rep0[:,:, bm['right foot']], True)
 
     # joints and root
     rep1[:,:, rm1['spine top']] = get_euler_from_vec_vectorized(rep0[:,:, bm['spine top']] - root_location, True)
     rep1[:,:, rm1['head']] = get_euler_from_vec_vectorized(rep0[:,:, bm['head']] - root_location, True)
     rep1[:,:, rm1['root']] = get_euler_from_vec_vectorized(root_location, True)
     rep1[:,:, rm1['root rotation']] = m9dtoeuler(root_angles)
-            
     return rep1
-
-
-def m9dtoeuler(m9d):
-     pitch = -1*np.arcsin(m9d[:, :, 0, 2, 0])
-     roll = np.arctan2( m9d[:, :, 0, 2, 1] / np.cos(pitch) , m9d[:, :, 0, 2, 2] / np.cos(pitch))
-     yaw = np.arctan2( m9d[:, :, 0, 1, 0] / np.cos(pitch) , m9d[:, :, 0, 0, 0] / np.cos(pitch))
-     return np.array(np.stack((yaw, pitch, roll), axis=-1))
 
     
 def representation1_backwards_partial(rep1):
@@ -291,78 +298,18 @@ def representation1_partial_mask():
     return mask
 
 
-"""
-def representation1backwards(rep1, keyframe):
-    INDICES_IN_USE = 22
-    rep0 = np.zeros((rep1.shape[0], rep1.shape[1], INDICES_IN_USE, 3))
-    bm = get_bone_mapping()
-    rm1 = get_representation1_mapping()
-    
-    for sequence in range(rep1.shape[0]):
-        for frame in range(rep1.shape[1]):
-            root_location = get_vec_from_euler(rep1[sequence, frame, rm1['root']])
-            
-            # hands
-            left_hand = bpy.data.objects[f"ctrl_arm.l"]
-            left_hand.location = get_vec_from_euler(rep1[sequence, frame, rm1['left hand']]) + root_location
-            left_elbow = bpy.data.objects["ctrl_elbow.l"]
-            left_elbow.location = get_vec_from_euler(rep1[sequence, frame, rm1['left elbow']]) + root_location
-
-            right_hand = bpy.data.objects[f"ctrl_arm.r"]
-            right_hand.location = get_vec_from_euler(rep1[sequence, frame, rm1['right hand']]) + root_location
-            right_elbow = bpy.data.objects["ctrl_elbow.r"]
-            right_elbow.location = get_vec_from_euler(rep1[sequence, frame, rm1['right elbow']]) + root_location
-            
-            # feet
-            left_foot = bpy.data.objects[f"ctrl_leg.l"]
-            left_foot.location = get_vec_from_euler(rep1[sequence, frame, rm1['left foot']]) + root_location
-            left_knee = bpy.data.objects["ctrl_knee.l"]
-            left_knee.location = get_vec_from_euler(rep1[sequence, frame, rm1['left knee']]) + root_location
-            
-            right_foot = bpy.data.objects[f"ctrl_leg.r"]
-            right_foot.location = get_vec_from_euler(rep1[sequence, frame, rm1['right foot']]) + root_location
-            right_knee = bpy.data.objects["ctrl_knee.r"]
-            right_knee.location = get_vec_from_euler(rep1[sequence, frame, rm1['right knee']]) + root_location
-            
-            # joints
-            head = bpy.data.objects[f"ctrl_head"]
-            head.location = get_vec_from_euler(rep1[sequence, frame, rm1['head']]) + root_location
-
-            spine_top = bpy.data.objects[f"ctrl_spine_top"]
-            spine_top.location = get_vec_from_euler(rep1[sequence, frame, rm1['spine top']]) + root_location
-
-            root_joint = bpy.data.objects[f"root"]
-            root_joint.location = root_location
-            root_joint.rotation_euler = Euler(rep1[sequence, frame, rm1['root rotation']], 'XYZ')
-            
-            bpy.context.view_layer.update()
-            
-            # store the information back into global positions
-            for joint in range(rep1.shape[2]):
-                rep0[sequence, frame, joint] = bpy.data.objects[f"solved_joint.{joint}"].location
-            
-            if keyframe != -1 and sequence == keyframe:
-                print(f'creating keyframes for sequence {sequence}!')
-                left_hand.keyframe_insert(data_path="location", frame=frame)
-                left_elbow.keyframe_insert(data_path="location", frame=frame)
-                right_hand.keyframe_insert(data_path="location", frame=frame)
-                right_elbow.keyframe_insert(data_path="location", frame=frame)
-                left_foot.keyframe_insert(data_path="location", frame=frame)
-                left_knee.keyframe_insert(data_path="location", frame=frame)
-                right_foot.keyframe_insert(data_path="location", frame=frame)
-                right_knee.keyframe_insert(data_path="location", frame=frame)
-                head.keyframe_insert(data_path="location", frame=frame)
-                spine_top.keyframe_insert(data_path="location", frame=frame)
-                root_joint.keyframe_insert(data_path="location", frame=frame)
-                root_joint.keyframe_insert(data_path="rotation_euler", frame=frame)
-            
-    return rep0
-"""
-
 if __name__ == "__main__":
+    wkdir_path = str(pathlib.Path(__file__).parent.resolve())
+    print(f'working directory path: {wkdir_path}')
+
+    data_path = wkdir_path[:wkdir_path.rfind('\\')]
+    data_path = data_path[:data_path.rfind('\\')]
+    data_path += "\\motion_data\\"
+    print(f'data path: {data_path}')
+
     file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
     save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
-    # file_path = "..\\..\\..\\final\\"
-    file_path = "/home/tyler/Desktop/Github/motion_inbetweening/scripts/ignore/"
-    make_converted_json(file_path + file_name, file_path + save_name)
+    make_converted_json(data_path + file_name, data_path + save_name)
 
+
+# %%
