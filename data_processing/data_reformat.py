@@ -42,7 +42,7 @@ def from_blend_coords(positions):
     positions = positions * 100
     return positions
 
-def get_euler_from_vec(vec, keep_length = False):
+def get_euler_from_vec_vectorized(vec, keep_length = False):
     length = np.linalg.norm(vec, axis=-1)
     vec = vec / length[..., None]
 
@@ -71,6 +71,25 @@ def get_vec_from_euler(angle):
     z *= -length
     
     return np.array([x, y, z])
+
+def get_vec_from_euler_vectorized(angle):
+    '''
+    angle: (..., 3)
+    '''
+    length = angle[..., 2] / (6 / MAX_LENGTH)
+    
+    mask = length == 0
+    length[mask] = 1
+        
+    y = np.cos(angle[..., 1]) * np.sin(angle[..., 0])
+    z = np.sin(angle[..., 1])
+    x = np.cos(angle[..., 1]) * np.cos(angle[..., 0])
+    
+    x *= length
+    y *= length
+    z *= -length
+    
+    return np.stack([x, y, z], axis=-1)
 
 
 """
@@ -169,12 +188,19 @@ def make_converted_json(file_path, save_path):
     print(f'CONVERTED ORIGINAL DATA TO GLOBAL \n\nsample data: {all_orig_positions[0,0]}')
     
     # creating new representation
-    rep1 = representation1(all_global_positions)
+    rep1 = representation1(all_global_positions, all_global_rotations)
     print(f'CONVERTED TO CUSTOM REPRESENTATION \n\nrep1 first instance: \nrot: \n{rep1[0, 0]}')
     
     rep1list = rep1.tolist()
     with open(save_path, 'w') as file:
         json.dump(rep1list, file)
+
+    partial_back = representation1_backwards_partial(rep1)
+    mask = representation1_partial_mask()
+    original_masked = all_global_positions * mask[:, np.newaxis]
+    total_error = np.sum(np.abs(original_masked - partial_back))
+    print(f'total error: {total_error}')
+
 
 
 """
@@ -200,23 +226,23 @@ def representation1(rep0, root_angles):
     root_location = rep0[:, :, bm['root']]
 
     # hands
-    rep1[:,:, rm1['left hand']] = get_euler_from_vec(rep0[:,:, bm['left hand']] - root_location, True)
-    rep1[:,:, rm1['left elbow']] = get_euler_from_vec(3 * rep0[:,:, bm['left elbow']] - rep0[:,:, bm['left hand']] - rep0[:,:, bm['left shoulder']] - root_location, True)
+    rep1[:,:, rm1['left hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left hand']] - root_location, True)
+    rep1[:,:, rm1['left elbow']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['left elbow']] - rep0[:,:, bm['left hand']] - rep0[:,:, bm['left shoulder']] - root_location, True)
 
-    rep1[:,:, rm1['right hand']] = get_euler_from_vec(rep0[:,:, bm['right hand']] - root_location, True)
-    rep1[:,:, rm1['right elbow']] = get_euler_from_vec(3 * rep0[:,:, bm['right elbow']] - rep0[:,:, bm['right hand']] - rep0[:,:, bm['right shoulder']] - root_location, True)
+    rep1[:,:, rm1['right hand']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right hand']] - root_location, True)
+    rep1[:,:, rm1['right elbow']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['right elbow']] - rep0[:,:, bm['right hand']] - rep0[:,:, bm['right shoulder']] - root_location, True)
 
     # feet
-    rep1[:,:, rm1['left foot']] = get_euler_from_vec(rep0[:,:, bm['left foot']] - root_location, True)
-    rep1[:,:, rm1['left knee']] = get_euler_from_vec(3 * rep0[:,:, bm['left knee']] - rep0[:,:, bm['left foot']] - rep0[:,:, bm['left hip']] - root_location, True)
+    rep1[:,:, rm1['left foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['left foot']] - root_location, True)
+    rep1[:,:, rm1['left knee']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['left knee']] - rep0[:,:, bm['left foot']] - rep0[:,:, bm['left hip']] - root_location, True)
 
-    rep1[:,:, rm1['right foot']] = get_euler_from_vec(rep0[:,:, bm['right foot']] - root_location, True)
-    rep1[:,:, rm1['right knee']] = get_euler_from_vec(3 * rep0[:,:, bm['right knee']] - rep0[:,:, bm['right foot']] - rep0[:,:, bm['right hip']] - root_location, True)
+    rep1[:,:, rm1['right foot']] = get_euler_from_vec_vectorized(rep0[:,:, bm['right foot']] - root_location, True)
+    rep1[:,:, rm1['right knee']] = get_euler_from_vec_vectorized(3 * rep0[:,:, bm['right knee']] - rep0[:,:, bm['right foot']] - rep0[:,:, bm['right hip']] - root_location, True)
 
     # joints and root
-    rep1[:,:, rm1['spine top']] = get_euler_from_vec(rep0[:,:, bm['spine top']] - root_location, True)
-    rep1[:,:, rm1['head']] = get_euler_from_vec(rep0[:,:, bm['head']] - root_location, True)
-    rep1[:,:, rm1['root']] = get_euler_from_vec(root_location, True)
+    rep1[:,:, rm1['spine top']] = get_euler_from_vec_vectorized(rep0[:,:, bm['spine top']] - root_location, True)
+    rep1[:,:, rm1['head']] = get_euler_from_vec_vectorized(rep0[:,:, bm['head']] - root_location, True)
+    rep1[:,:, rm1['root']] = get_euler_from_vec_vectorized(root_location, True)
     rep1[:,:, rm1['root rotation']] = m9dtoeuler(root_angles)
             
     return rep1
@@ -235,22 +261,33 @@ def representation1_backwards_partial(rep1):
     bm = get_bone_mapping()
     rm1 = get_representation1_mapping()
     
-    for sequence in range(rep1.shape[0]):
-        for frame in range(rep1.shape[1]):
-            root_location = get_vec_from_euler(rep1[sequence, frame, rm1['root']])
+    root_location = get_vec_from_euler_vectorized(rep1[:, :, rm1['root']])
 
-            #hands
-            rep0[sequence, frame, bm['left hand']] = get_vec_from_euler(rep1[sequence, frame, rm1['left hand']]) + root_location
-            rep0[sequence, frame, bm['right hand']] = get_vec_from_euler(rep1[sequence, frame, rm1['right hand']]) + root_location
+    #hands
+    rep0[:, :, bm['left hand']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['left hand']]) + root_location
+    rep0[:, :, bm['right hand']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['right hand']]) + root_location
 
-            rep0[sequence, frame, bm['left foot']] = get_vec_from_euler(rep1[sequence, frame, rm1['left foot']]) + root_location
-            rep0[sequence, frame, bm['right foot']] = get_vec_from_euler(rep1[sequence, frame, rm1['right foot']]) + root_location
+    rep0[:, :, bm['left foot']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['left foot']]) + root_location
+    rep0[:, :, bm['right foot']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['right foot']]) + root_location
 
-            rep0[sequence, frame, bm['head']] = get_vec_from_euler(rep1[sequence, frame, rm1['head']]) + root_location
-            rep0[sequence, frame, bm['spine top']] = get_vec_from_euler(rep1[sequence, frame, rm1['spine top']]) + root_location
-            rep0[sequence, frame, bm['root']] = root_location
+    rep0[:, :, bm['head']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['head']]) + root_location
+    rep0[:, :, bm['spine top']] = get_vec_from_euler_vectorized(rep1[:, :, rm1['spine top']]) + root_location
+    rep0[:, :, bm['root']] = root_location
             
     return rep0
+
+
+def representation1_partial_mask():
+    bm = get_bone_mapping()
+    mask = np.zeros((22,))
+    mask[bm['left hand']] = 1
+    mask[bm['right hand']] = 1
+    mask[bm['left foot']] = 1
+    mask[bm['right foot']] = 1
+    mask[bm['head']] = 1
+    mask[bm['spine top']] = 1
+    mask[bm['root']] = 1
+    return mask
 
 
 """
@@ -326,3 +363,4 @@ file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
 save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
 file_path = "..\\..\\..\\final\\"
 make_converted_json(file_path + file_name, file_path + save_name)
+
