@@ -2,6 +2,7 @@
 import numpy as np
 import json
 import pathlib
+import torch
 
 MAX_LENGTH = 2
 
@@ -111,6 +112,45 @@ def m9dtoeuler(m9d):
      yaw = np.arctan2( m9d[:, :, 0, 1, 0] / np.cos(pitch) , m9d[:, :, 0, 0, 0] / np.cos(pitch))
      return np.array(np.stack((yaw, pitch, roll), axis=-1))
 
+def euler_to_matrix_vectorized(euler_angles):
+    """
+    Convert multiple sets of Euler angles to rotation matrices using vectorized operations.
+
+    Args:
+        euler_angles (numpy.ndarray): Array of shape (n, 3) where each row contains
+                                      yaw, pitch, and roll angles in radians.
+
+    Returns:
+        numpy.ndarray: Array of shape (n, 3, 3) containing rotation matrices.
+    """
+    yaw, pitch, roll = euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2]
+
+    # Trigonometric calculations
+    cy, sy = np.cos(yaw), np.sin(yaw)
+    cp, sp = np.cos(pitch), np.sin(pitch)
+    cr, sr = np.cos(roll), np.sin(roll)
+
+    # Component matrices, vectorized across the first dimension
+    Rz = np.array([[cy, -sy, np.zeros_like(cy)],
+                   [sy, cy, np.zeros_like(cy)],
+                   [np.zeros_like(cy), np.zeros_like(cy), np.ones_like(cy)]])
+    Ry = np.array([[cp, np.zeros_like(cp), sp],
+                   [np.zeros_like(cp), np.ones_like(cp), np.zeros_like(cp)],
+                   [-sp, np.zeros_like(cp), cp]])
+    Rx = np.array([[np.ones_like(cr), np.zeros_like(cr), np.zeros_like(cr)],
+                   [np.zeros_like(cr), cr, -sr],
+                   [np.zeros_like(cr), sr, cr]])
+
+    # Transpose to shape the matrices correctly for matrix multiplication
+    Rz = np.transpose(Rz, (2, 0, 1))
+    Ry = np.transpose(Ry, (2, 0, 1))
+    Rx = np.transpose(Rx, (2, 0, 1))
+
+    # Matrix multiplication for all sets, np.einsum can also be used for clarity
+    R = Rz @ Ry @ Rx  # Matrix multiplication over last two dimensions
+
+    return R
+
 """
 HELPERS
 """
@@ -210,7 +250,9 @@ def make_converted_json(file_path, save_path):
     total_error = np.sum(np.abs(original_masked - partial_back))
     print(f'total error: {total_error}')
 
-
+    root_rot = representation1_backwards_rot(rep1)
+    total_error = np.sum(np.abs(all_global_rotations[:, :, 0, :, :] - root_rot))
+    print(f'total error: {total_error}')
 
 """
 MAIN CONVERSION MODULES
@@ -284,6 +326,17 @@ def representation1_backwards_partial(rep1):
             
     return rep0
 
+def representation1_backwards_rot(rep1):
+    rm1 = get_representation1_mapping()
+    root_rot_euler = rep1[:, :, rm1["root rotation"]].reshape(-1, 3)
+    root_rot_9D = euler_to_matrix_vectorized(root_rot_euler).reshape(rep1.shape[0], rep1.shape[1], 3, 3)
+
+    return root_rot_9D
+
+
+def get_global_root_rot_from_rep1(rep1):
+    rm1 = get_representation1_mapping()
+    return rep1[:, :, rm1['root rotation']]
 
 def representation1_partial_mask():
     bm = get_bone_mapping()
@@ -308,7 +361,9 @@ if __name__ == "__main__":
     print(f'data path: {data_path}')
 
     file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
-    save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
+    save_name = f"CONVERTED_{file_name}"
+
+    data_path = "/home/tyler/Desktop/Github/motion_inbetweening/scripts/ignore/"
     make_converted_json(data_path + file_name, data_path + save_name)
 
 
