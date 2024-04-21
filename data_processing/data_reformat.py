@@ -1,6 +1,7 @@
 import numpy as np
 import json
 
+MAX_LENGTH = 2
 
 """
 FILE IO
@@ -43,20 +44,18 @@ def get_euler_from_vec(vec, keep_length = False):
     length = np.linalg.norm(vec)
     vec = vec / length
     
-    MAX_LENGTH = 2
-    
     yaw = np.arctan2(vec[1], vec[0])
     pitch = np.arcsin(-vec[2])
     roll = 0
 
     if keep_length:
-        roll = length * (360 / MAX_LENGTH)
+        roll = length * (6 / MAX_LENGTH)
     
     return [yaw, pitch, roll]
 
 def get_vec_from_euler(angle):
-    MAX_LENGTH = 2
-    length = angle[2] / (360 / MAX_LENGTH)
+
+    length = angle[2] / (6 / MAX_LENGTH)
     
     if length == 0:
         length = 1
