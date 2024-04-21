@@ -201,17 +201,17 @@ def representation1(rep0, root_angles):
 
     # hands
     rep1[:,:, rm1['left hand']] = get_euler_from_vec(rep0[:,:, bm['left hand']] - root_location, True)
-    rep1[:,:, rm1['left elbow']] = get_euler_from_vec(2 * rep0[:,:, bm['left elbow']] - 0.5 * rep0[:,:, bm['left hand']] - 0.5 * rep0[:,:, bm['left shoulder']] - root_location, True)
+    rep1[:,:, rm1['left elbow']] = get_euler_from_vec(3 * rep0[:,:, bm['left elbow']] - rep0[:,:, bm['left hand']] - rep0[:,:, bm['left shoulder']] - root_location, True)
 
     rep1[:,:, rm1['right hand']] = get_euler_from_vec(rep0[:,:, bm['right hand']] - root_location, True)
-    rep1[:,:, rm1['right elbow']] = get_euler_from_vec(2 * rep0[:,:, bm['right elbow']] - 0.5 * rep0[:,:, bm['right hand']] - 0.5 * rep0[:,:, bm['right shoulder']] - root_location, True)
+    rep1[:,:, rm1['right elbow']] = get_euler_from_vec(3 * rep0[:,:, bm['right elbow']] - rep0[:,:, bm['right hand']] - rep0[:,:, bm['right shoulder']] - root_location, True)
 
     # feet
     rep1[:,:, rm1['left foot']] = get_euler_from_vec(rep0[:,:, bm['left foot']] - root_location, True)
-    rep1[:,:, rm1['left knee']] = get_euler_from_vec(2 * rep0[:,:, bm['left knee']] - 0.5 * rep0[:,:, bm['left foot']] - 0.5 * rep0[:,:, bm['left hip']] - root_location, True)
+    rep1[:,:, rm1['left knee']] = get_euler_from_vec(3 * rep0[:,:, bm['left knee']] - rep0[:,:, bm['left foot']] - rep0[:,:, bm['left hip']] - root_location, True)
 
     rep1[:,:, rm1['right foot']] = get_euler_from_vec(rep0[:,:, bm['right foot']] - root_location, True)
-    rep1[:,:, rm1['right knee']] = get_euler_from_vec(2 * rep0[:,:, bm['right knee']] - 0.5 * rep0[:,:, bm['right foot']] - 0.5 * rep0[:,:, bm['right hip']] - root_location, True)
+    rep1[:,:, rm1['right knee']] = get_euler_from_vec(3 * rep0[:,:, bm['right knee']] - rep0[:,:, bm['right foot']] - rep0[:,:, bm['right hip']] - root_location, True)
 
     # joints and root
     rep1[:,:, rm1['spine top']] = get_euler_from_vec(rep0[:,:, bm['spine top']] - root_location, True)
