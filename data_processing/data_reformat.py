@@ -440,9 +440,9 @@ def representation1_backwards_partial_torch(rep1, dtype, device):
     rep0[:, :, bm['right elbow']] = rep1[:, :, rm1['right elbow']]
 
     rep0[:, :, bm['left foot']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['left foot']], dtype, device) + root_location
-    rep0[:, :, bm['left foot']] = rep1[:, :, rm1['left knee']]
+    rep0[:, :, bm['left knee']] = rep1[:, :, rm1['left knee']]
     rep0[:, :, bm['right foot']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['right foot']], dtype, device) + root_location
-    rep0[:, :, bm['right foot']] = rep1[:, :, rm1['right knee']]
+    rep0[:, :, bm['right knee']] = rep1[:, :, rm1['right knee']]
 
     rep0[:, :, bm['head']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['head']], dtype, device) + root_location
     rep0[:, :, bm['spine top']] = get_vec_from_euler_vectorized_torch(rep1[:, :, rm1['spine top']], dtype, device) + root_location
