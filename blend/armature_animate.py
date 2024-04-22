@@ -21,7 +21,7 @@ data_path += "\\motion_data\\"
 
 print(f'data path: {data_path}')
 
-from data_reformat import format_data, from_blend_coords
+from data_reformat import format_data, read_rep1, from_blend_coords, to_blend_coords
 from data_reformat import get_vec_from_euler
 from data_reformat import get_bone_mapping, get_representation1_mapping
 from data_reformat import representation1, representation1_backwards_partial, representation1_partial_mask
@@ -95,8 +95,6 @@ def visualize_skeleton(positions):
     the empties will be called joint.{JOINT_NUM}, they will be created if not existing, otherwise the keyframes
     will overwrite the existing empties.
     """
-    bm = get_bone_mapping()
-
     for frame in range(positions.shape[0]):
         for joint in range(positions.shape[1]):
             # create empty if not exist, otherwise retrieve the empty
@@ -108,39 +106,12 @@ def visualize_skeleton(positions):
             x.location = positions[frame, joint]
             bpy.context.view_layer.update()
             x.keyframe_insert(data_path="location", frame=frame)
-        
-        '''
-        x = bpy.context.scene.objects.get(f"joint.left elbow target")
-        if not x:
-            x = create_empty([0,0,0], f"joint.left elbow target")
-        x.location = 2 * positions[frame, bm['left elbow']] - 1.5 * positions[frame, bm['left hand']] - 0.5 * positions[frame, bm['left shoulder']] + positions[frame, bm['left hand']]
-        bpy.context.view_layer.update()
-        x.keyframe_insert(data_path="location", frame=frame)
-
-        x = bpy.context.scene.objects.get(f"joint.right elbow target")
-        if not x:
-            x = create_empty([0,0,0], f"joint.right elbow target")
-        x.location = 2 * positions[frame, bm['right elbow']] - 1.5 * positions[frame, bm['right hand']] - 0.5 * positions[frame, bm['right shoulder']] + positions[frame, bm['right hand']]
-        bpy.context.view_layer.update()
-        x.keyframe_insert(data_path="location", frame=frame)
-
-        x = bpy.context.scene.objects.get(f"joint.left knee target")
-        if not x:
-            x = create_empty([0,0,0], f"joint.left knee target")
-        x.location = 2 * positions[frame, bm['left knee']] - 1.5 * positions[frame, bm['left foot']] - 0.5 * positions[frame, bm['left hip']] + positions[frame, bm['left foot']]
-        bpy.context.view_layer.update()
-        x.keyframe_insert(data_path="location", frame=frame)
-
-        x = bpy.context.scene.objects.get(f"joint.right knee target")
-        if not x:
-            x = create_empty([0,0,0], f"joint.right knee target")
-        x.location = 2 * positions[frame, bm['right knee']] - 1.5 * positions[frame, bm['right foot']] - 0.5 * positions[frame, bm['right hip']] + positions[frame, bm['right foot']]
-        bpy.context.view_layer.update()
-        x.keyframe_insert(data_path="location", frame=frame)
-        '''
 
 
 def test_visualization(file_path):
+    """
+    a testing function for all the functions to ensure everything works properly
+    """
     all_global_positions, all_global_rotations = format_data(file_path)
 
     # visualize original ground truth
@@ -155,8 +126,7 @@ def test_visualization(file_path):
     print(f'RESTORED TO ORIGINAL FORMAT IN ORIGINAL COORDS\n\nfirst instance of restored: {all_restored_positions[0,0]}')
     
     # visualize the armature movement controlled by rep1 data
-    for frame in range(rep1.shape[1]):
-        representation1_set_locations(rep1[VISUALIZE, frame], frame)
+    visualize_armature(rep1[VISUALIZE])
     
     print(f'PARTIAL RESTORATION CHECK:')
 
@@ -191,43 +161,80 @@ def representation1_backwards(rep1):
     return rep0
 
 
-def representation1_set_locations(rep1_frame, keyframe_frame=-1):
+def visualize_armature(rep1_sequence, offset=0, convert_coords=False):
+    """
+    keyframes all the controllers of a sequence in rep1, optional offset frames and conversion into blender coords
+    """
+    for frame in range(rep1_sequence.shape[0]):
+        representation1_set_locations(rep1_sequence[frame], frame + offset, convert_coords)
+
+
+def representation1_set_locations(rep1_frame, keyframe_frame=-1, convert_coords=False):
+    """
+    rep1_frame is a single frame containing all the controllers, shape should be (22, 3)
+
+    keyframe_frame is an optional parameter, if set to anything other than -1, a keyframe in blender is created
+    for all the controllers at that frame
+
+    convert_coords will run to_blend_coords() on all the resulting locations after conversion from rep1 to cartesian,
+    this is done if the data wasn't converted to blender coords before conversion into rep1.
+    """
     rm1 = get_representation1_mapping()
 
     root_location = get_vec_from_euler(rep1_frame[rm1['root']])
+
+    locations = np.zeros((22, 3))
+    rm = get_representation1_mapping()
     
     # hands
     left_hand = bpy.data.objects[f"ctrl_arm.l"]
-    left_hand.location = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
+    locations[rm['left hand']] = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
     left_elbow = bpy.data.objects["ctrl_elbow.l"]
-    left_elbow.location = get_vec_from_euler(rep1_frame[rm1['left elbow']]) + left_hand.location
+    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']]) + left_hand.location
 
     right_hand = bpy.data.objects[f"ctrl_arm.r"]
-    right_hand.location = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
+    locations[rm['right hand']] = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
     right_elbow = bpy.data.objects["ctrl_elbow.r"]
-    right_elbow.location = get_vec_from_euler(rep1_frame[rm1['right elbow']]) + right_hand.location
+    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']]) + right_hand.location
     
     # feet
     left_foot = bpy.data.objects[f"ctrl_leg.l"]
-    left_foot.location = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
+    locations[rm['left foot']] = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
     left_knee = bpy.data.objects["ctrl_knee.l"]
-    left_knee.location = get_vec_from_euler(rep1_frame[rm1['left knee']]) + left_foot.location
+    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']]) + left_foot.location
     
     right_foot = bpy.data.objects[f"ctrl_leg.r"]
-    right_foot.location = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
+    locations[rm['right foot']] = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
     right_knee = bpy.data.objects["ctrl_knee.r"]
-    right_knee.location = get_vec_from_euler(rep1_frame[rm1['right knee']]) + right_foot.location
+    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']]) + right_foot.location
     
     # joints
     head = bpy.data.objects[f"ctrl_head"]
-    head.location = get_vec_from_euler(rep1_frame[rm1['head']]) + root_location
-
+    locations[rm['head']] = get_vec_from_euler(rep1_frame[rm1['head']]) + root_location
     spine_top = bpy.data.objects[f"ctrl_spine_top"]
-    spine_top.location = get_vec_from_euler(rep1_frame[rm1['spine top']]) + root_location
-
+    locations[rm['spine top']] = get_vec_from_euler(rep1_frame[rm1['spine top']]) + root_location
     root_joint = bpy.data.objects[f"root"]
-    root_joint.location = root_location
+    locations[rm['root']] = root_location
+
     root_joint.rotation_euler = Euler(rep1_frame[rm1['root rotation']], 'XYZ')
+
+    if convert_coords:
+        for i in range(len(locations)):
+            locations[i] = to_blend_coords(locations[i])
+
+    left_hand.location = locations[rm['left hand']]
+    left_elbow.location = locations[rm['left elbow']]
+    right_hand.location = locations[rm['right hand']]
+    right_elbow.location = locations[rm['right elbow']]
+
+    left_foot.location = locations[rm['left foot']]
+    left_knee.location = locations[rm['left knee']]
+    right_foot.location = locations[rm['right foot']]
+    right_knee.location = locations[rm['right knee']]
+
+    head.location = locations[rm['head']]
+    spine_top.location = locations[rm['spine top']]
+    root_joint.location = locations[rm['root']]
     
     bpy.context.view_layer.update()
 
@@ -246,6 +253,31 @@ def representation1_set_locations(rep1_frame, keyframe_frame=-1):
         root_joint.keyframe_insert(data_path="rotation_euler", frame=keyframe_frame)
 
 
-file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
-save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
-test_visualization(data_path + file_name)
+def test():
+    file_name = "lafan1_detail_model_benchmark_5_0-2231.json"
+    save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
+    test_visualization(data_path + file_name)
+
+
+def visualize_from_file():
+    gt_file_name = "new_rep_lafan1_context_model_benchmark_30_0-2231_gt.json"
+    file_name = "new_rep_lafan1_context_model_benchmark_30_0-2231.json"
+    rep1_gt = read_rep1(data_path + gt_file_name)
+    rep1_gt = np.array(rep1_gt)
+    rep1 = read_rep1(data_path + file_name)
+    rep1 = np.array(rep1)
+    print(f'rep1_gt shape: {rep1_gt.shape} rep1 shape: {rep1.shape}')
+    '''
+    visualize_armature(rep1[310], convert_coords=True)
+    visualize_armature(rep1[560], offset=50, convert_coords=True)
+    visualize_armature(rep1[650], offset=100, convert_coords=True)
+    visualize_armature(rep1[750], offset=150, convert_coords=True)
+    visualize_armature(rep1[850], offset=200, convert_coords=True)
+    '''
+    visualize_armature(rep1_gt[310], convert_coords=True)
+    visualize_armature(rep1_gt[560], offset=50, convert_coords=True)
+    visualize_armature(rep1_gt[650], offset=100, convert_coords=True)
+    visualize_armature(rep1_gt[750], offset=150, convert_coords=True)
+    visualize_armature(rep1_gt[850], offset=200, convert_coords=True)
+    
+visualize_from_file()

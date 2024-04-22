@@ -27,6 +27,12 @@ def format_data(file_path):
     print(f'CONVERTED ORIGINAL DATA TO GLOBAL')
     return all_global_positions, all_global_rotations
 
+def read_rep1(file_path):
+    with open(file_path) as json_data:
+        d = json.load(json_data)
+
+    return d['rep1']
+
 
 """
 COORDINATE AND VECTOR MANIPULATION
