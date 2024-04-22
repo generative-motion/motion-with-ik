@@ -404,7 +404,7 @@ def get_pull_target_rotations(rep0, dtype, device):
     return left_elbow_pull_angle, right_elbow_pull_angle, left_knee_pull_angle, right_knee_pull_angle
 
 
-def representation0_injection(rep0, dtype, device):
+def representation0_injection(rep0, dtype=torch.float64, device='cpu'):
     """
     Instead of ground truth contaiing knee/elbow positions, the pull target angles are stored instead. This is because our model directly outputs pull target angles
     rather than the positions of elbows/knees.
@@ -476,6 +476,12 @@ def representation1_partial_mask():
     mask[bm['head']] = 1
     mask[bm['spine top']] = 1
     mask[bm['root']] = 1
+
+    # comment out if not using ik pull targets
+    mask[bm['left elbow']] = 1
+    mask[bm['right elbow']] = 1
+    mask[bm['left knee']] = 1
+    mask[bm['right knee']] = 1
     return mask
 
 

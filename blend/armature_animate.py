@@ -1,5 +1,6 @@
 import bpy
 import sys
+import torch
 
 #import pip
 #pip.main(['install', 'torch', 'torchvision', 'torchaudio', '--user'])
@@ -28,7 +29,7 @@ data_path += "\\motion_data\\"
 print(f'data path: {data_path}')
 
 from data_reformat import format_data, read_rep1, from_blend_coords, to_blend_coords
-from data_reformat import get_vec_from_euler
+from data_reformat import get_vec_from_euler, representation0_injection
 from data_reformat import get_bone_mapping, get_representation1_mapping
 from data_reformat import representation1, representation1_backwards_partial, representation1_partial_mask
 
@@ -136,13 +137,27 @@ def test_visualization(file_path):
     
     print(f'PARTIAL RESTORATION CHECK:')
 
+    # overwrites elbow and knee positions with the ik pull target rotation instead into ground truth
+    all_global_positions = representation0_injection(torch.from_numpy(all_global_positions)).numpy()
+
     partial_back = representation1_backwards_partial(rep1)
     mask = representation1_partial_mask()
-    original_masked = all_global_positions * mask[:, np.newaxis]
-    total_error = np.sum(np.abs(original_masked - partial_back))
-    print(f'total error: {total_error}')
-    
-    #visualize_skeleton(partial_back[VISUALIZE])
+    original_masked = all_global_positions * mask[:, np.newaxis] 
+    total_error = np.sum(np.abs(original_masked - partial_back)) / (all_global_positions.shape[0] * all_global_positions.shape[1])
+    print(f'avg error per frame: {total_error}')
+
+    error_by_joint = np.mean(np.abs(original_masked - partial_back), axis=-1)
+    error_by_joint = np.mean(error_by_joint, axis=(0, 1))
+    bm = get_bone_mapping()
+    print(f'avg error for each joint:')
+    for bone, index in bm.items():
+        print(f'  bone {bone}: {error_by_joint[index]}')
+
+    print(f"sample left elbow back values: {partial_back[10,:,bm['left elbow']]}")
+    print(f"sample left elbow original values: {original_masked[10,:,bm['left elbow']]}")
+    print(f"sample left knee back values: {partial_back[10,:,bm['left knee']]}")
+    print(f"sample left knee original values: {original_masked[10,:,bm['left knee']]}")
+
     print(f'all visualizations successful')
     
     return all_restored_positions
