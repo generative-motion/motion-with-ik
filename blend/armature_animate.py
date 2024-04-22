@@ -1,10 +1,16 @@
 import bpy
+import sys
+
+#import pip
+#pip.main(['install', 'torch', 'torchvision', 'torchaudio', '--user'])
+packages_path = "C:\\Users\\eggyr\\AppData\\Roaming\\Python\\Python311\\Scripts" + "\\..\\site-packages"
+sys.path.insert(0, packages_path)
+
 from mathutils import Euler
 
 import time
 import numpy as np
 import pathlib
-import sys
 
 wkdir_path = str(pathlib.Path(__file__).parent.resolve())
 wkdir_path = wkdir_path[:wkdir_path.rfind('\\')]
@@ -180,43 +186,40 @@ def representation1_set_locations(rep1_frame, keyframe_frame=-1, convert_coords=
     this is done if the data wasn't converted to blender coords before conversion into rep1.
     """
     rm1 = get_representation1_mapping()
-
-    root_location = get_vec_from_euler(rep1_frame[rm1['root']])
-
-    locations = np.zeros((22, 3))
     rm = get_representation1_mapping()
-    
-    # hands
-    left_hand = bpy.data.objects[f"ctrl_arm.l"]
-    locations[rm['left hand']] = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
-    left_elbow = bpy.data.objects["ctrl_elbow.l"]
-    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']]) + left_hand.location
-
-    right_hand = bpy.data.objects[f"ctrl_arm.r"]
-    locations[rm['right hand']] = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
-    right_elbow = bpy.data.objects["ctrl_elbow.r"]
-    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']]) + right_hand.location
-    
-    # feet
-    left_foot = bpy.data.objects[f"ctrl_leg.l"]
-    locations[rm['left foot']] = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
-    left_knee = bpy.data.objects["ctrl_knee.l"]
-    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']]) + left_foot.location
-    
-    right_foot = bpy.data.objects[f"ctrl_leg.r"]
-    locations[rm['right foot']] = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
-    right_knee = bpy.data.objects["ctrl_knee.r"]
-    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']]) + right_foot.location
+    locations = np.zeros((22, 3))
     
     # joints
+    root_location = get_vec_from_euler(rep1_frame[rm1['root']])
     head = bpy.data.objects[f"ctrl_head"]
     locations[rm['head']] = get_vec_from_euler(rep1_frame[rm1['head']]) + root_location
     spine_top = bpy.data.objects[f"ctrl_spine_top"]
     locations[rm['spine top']] = get_vec_from_euler(rep1_frame[rm1['spine top']]) + root_location
     root_joint = bpy.data.objects[f"root"]
     locations[rm['root']] = root_location
-
     root_joint.rotation_euler = Euler(rep1_frame[rm1['root rotation']], 'XYZ')
+    
+    # hands
+    left_hand = bpy.data.objects[f"ctrl_arm.l"]
+    locations[rm['left hand']] = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
+    left_elbow = bpy.data.objects["ctrl_elbow.l"]
+    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']], 2) + 0.5 * (locations[rm['left hand']] + locations[rm['spine top']])
+
+    right_hand = bpy.data.objects[f"ctrl_arm.r"]
+    locations[rm['right hand']] = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
+    right_elbow = bpy.data.objects["ctrl_elbow.r"]
+    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']], 2) + 0.5 * (locations[rm['right hand']] + locations[rm['spine top']])
+    
+    # feet
+    left_foot = bpy.data.objects[f"ctrl_leg.l"]
+    locations[rm['left foot']] = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
+    left_knee = bpy.data.objects["ctrl_knee.l"]
+    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']], 2) + 0.5 * (locations[rm['left foot']] + locations[rm['root']])
+    
+    right_foot = bpy.data.objects[f"ctrl_leg.r"]
+    locations[rm['right foot']] = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
+    right_knee = bpy.data.objects["ctrl_knee.r"]
+    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']], 2) + 0.5 * (locations[rm['right foot']] + locations[rm['root']])
 
     if convert_coords:
         for i in range(len(locations)):
@@ -280,4 +283,5 @@ def visualize_from_file():
     visualize_armature(rep1_gt[750], offset=150, convert_coords=True)
     visualize_armature(rep1_gt[850], offset=200, convert_coords=True)
     
-visualize_from_file()
+#visualize_from_file()
+test()
