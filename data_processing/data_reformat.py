@@ -367,16 +367,17 @@ def get_pull_target_positions(rep0):
     bm = get_bone_mapping()
 
     left_arm_mid = 0.5 * rep0[:,:, bm['left hand']] + 0.5 * rep0[:,:, bm['left shoulder']]
-    left_elbow_target = pull_target_dist_multiplier * (rep0[:,:, bm['left elbow']] - left_arm_mid) + left_arm_mid - rep0[:,:, bm['left hand']]
+    left_elbow_target = pull_target_dist_multiplier * (rep0[:,:, bm['left elbow']] - left_arm_mid) + left_arm_mid
 
     right_arm_mid = 0.5 * rep0[:,:, bm['right hand']] + 0.5 * rep0[:,:, bm['right shoulder']]
-    right_elbow_target = pull_target_dist_multiplier * (rep0[:,:, bm['right elbow']] - right_arm_mid) + right_arm_mid - rep0[:,:, bm['right hand']]
+    right_elbow_target = pull_target_dist_multiplier * (rep0[:,:, bm['right elbow']] - right_arm_mid) + right_arm_mid
 
     left_leg_mid = 0.5 * rep0[:,:, bm['left foot']] + 0.5 * rep0[:,:, bm['left hip']]
-    left_knee_target = pull_target_dist_multiplier * (rep0[:,:, bm['left knee']] - left_leg_mid) + left_leg_mid - rep0[:,:, bm['left foot']]
+    left_knee_target = pull_target_dist_multiplier * (rep0[:,:, bm['left knee']] - left_leg_mid) + left_leg_mid
+    #left_knee_target = rep0[:,:, bm['left toe']] - rep0[:,:, bm['left toe']] 
 
     right_leg_mid = 0.5 * rep0[:,:, bm['right foot']] + 0.5 * rep0[:,:, bm['right hip']]
-    right_knee_target = pull_target_dist_multiplier * (rep0[:,:, bm['right knee']] - right_leg_mid) + right_leg_mid - rep0[:,:, bm['right foot']]
+    right_knee_target = pull_target_dist_multiplier * (rep0[:,:, bm['right knee']] - right_leg_mid) + right_leg_mid
 
     return left_elbow_target, right_elbow_target, left_knee_target, right_knee_target
 

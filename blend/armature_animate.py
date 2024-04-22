@@ -203,23 +203,23 @@ def representation1_set_locations(rep1_frame, keyframe_frame=-1, convert_coords=
     left_hand = bpy.data.objects[f"ctrl_arm.l"]
     locations[rm['left hand']] = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
     left_elbow = bpy.data.objects["ctrl_elbow.l"]
-    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']], 2) + 0.5 * (locations[rm['left hand']] + locations[rm['spine top']])
+    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']], 1) + 0.5 * (locations[rm['left hand']] + locations[rm['spine top']])
 
     right_hand = bpy.data.objects[f"ctrl_arm.r"]
     locations[rm['right hand']] = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
     right_elbow = bpy.data.objects["ctrl_elbow.r"]
-    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']], 2) + 0.5 * (locations[rm['right hand']] + locations[rm['spine top']])
+    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']], 1) + 0.5 * (locations[rm['right hand']] + locations[rm['spine top']])
     
     # feet
     left_foot = bpy.data.objects[f"ctrl_leg.l"]
     locations[rm['left foot']] = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
     left_knee = bpy.data.objects["ctrl_knee.l"]
-    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']], 2) + 0.5 * (locations[rm['left foot']] + locations[rm['root']])
+    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']], 1) + 0.5 * (locations[rm['left foot']] + locations[rm['root']])
     
     right_foot = bpy.data.objects[f"ctrl_leg.r"]
     locations[rm['right foot']] = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
     right_knee = bpy.data.objects["ctrl_knee.r"]
-    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']], 2) + 0.5 * (locations[rm['right foot']] + locations[rm['root']])
+    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']], 1) + 0.5 * (locations[rm['right foot']] + locations[rm['root']])
 
     if convert_coords:
         for i in range(len(locations)):
