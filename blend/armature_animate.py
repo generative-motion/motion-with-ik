@@ -217,24 +217,29 @@ def representation1_set_locations(rep1_frame, keyframe_frame=-1, convert_coords=
     # hands
     left_hand = bpy.data.objects[f"ctrl_arm.l"]
     locations[rm['left hand']] = get_vec_from_euler(rep1_frame[rm1['left hand']]) + root_location
-    left_elbow = bpy.data.objects["ctrl_elbow.l"]
-    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']], 1) + 0.5 * (locations[rm['left hand']] + locations[rm['spine top']])
 
     right_hand = bpy.data.objects[f"ctrl_arm.r"]
     locations[rm['right hand']] = get_vec_from_euler(rep1_frame[rm1['right hand']]) + root_location
-    right_elbow = bpy.data.objects["ctrl_elbow.r"]
-    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']], 1) + 0.5 * (locations[rm['right hand']] + locations[rm['spine top']])
     
     # feet
     left_foot = bpy.data.objects[f"ctrl_leg.l"]
     locations[rm['left foot']] = get_vec_from_euler(rep1_frame[rm1['left foot']]) + root_location
-    left_knee = bpy.data.objects["ctrl_knee.l"]
-    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']], 1) + 0.5 * (locations[rm['left foot']] + locations[rm['root']])
     
     right_foot = bpy.data.objects[f"ctrl_leg.r"]
     locations[rm['right foot']] = get_vec_from_euler(rep1_frame[rm1['right foot']]) + root_location
+    
+    pull_target_multiplier = 1
+    if convert_coords:
+        pull_target_multiplier = 100
+
+    left_elbow = bpy.data.objects["ctrl_elbow.l"]
+    locations[rm['left elbow']] = get_vec_from_euler(rep1_frame[rm1['left elbow']], pull_target_multiplier) + 0.5 * (locations[rm['left hand']] + locations[rm['spine top']])
+    right_elbow = bpy.data.objects["ctrl_elbow.r"]
+    locations[rm['right elbow']] = get_vec_from_euler(rep1_frame[rm1['right elbow']], pull_target_multiplier) + 0.5 * (locations[rm['right hand']] + locations[rm['spine top']])
+    left_knee = bpy.data.objects["ctrl_knee.l"]
+    locations[rm['left knee']] = get_vec_from_euler(rep1_frame[rm1['left knee']], pull_target_multiplier) + 0.5 * (locations[rm['left foot']] + locations[rm['root']])
     right_knee = bpy.data.objects["ctrl_knee.r"]
-    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']], 1) + 0.5 * (locations[rm['right foot']] + locations[rm['root']])
+    locations[rm['right knee']] = get_vec_from_euler(rep1_frame[rm1['right knee']], pull_target_multiplier) + 0.5 * (locations[rm['right foot']] + locations[rm['root']])
 
     if convert_coords:
         for i in range(len(locations)):
@@ -278,13 +283,17 @@ def test():
 
 
 def visualize_from_file():
-    gt_file_name = "new_rep_lafan1_context_model_benchmark_30_0-2231_gt.json"
-    file_name = "new_rep_lafan1_context_model_benchmark_30_0-2231.json"
+    gt_file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231_gt (1).json"
+    file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231 (1).json"
     rep1_gt = read_rep1(data_path + gt_file_name)
     rep1_gt = np.array(rep1_gt)
     rep1 = read_rep1(data_path + file_name)
     rep1 = np.array(rep1)
     print(f'rep1_gt shape: {rep1_gt.shape} rep1 shape: {rep1.shape}')
+
+    rm = get_representation1_mapping()
+    print(f"inferenced pull target data: left elbow \n{rep1_gt[200, :, rm['left elbow']]}")
+    print(f"gt pull target data: left elbow \n{rep1[200, :, rm['left elbow']]}")
     '''
     visualize_armature(rep1[310], convert_coords=True)
     visualize_armature(rep1[560], offset=50, convert_coords=True)
@@ -298,5 +307,5 @@ def visualize_from_file():
     visualize_armature(rep1_gt[750], offset=150, convert_coords=True)
     visualize_armature(rep1_gt[850], offset=200, convert_coords=True)
     
-#visualize_from_file()
-test()
+visualize_from_file()
+#test()
