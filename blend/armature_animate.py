@@ -1,6 +1,7 @@
 import bpy
 import sys
 import torch
+import json
 
 #import pip
 #pip.main(['install', 'torch', 'torchvision', 'torchaudio', '--user'])
@@ -281,31 +282,57 @@ def test():
     save_name = "CONVERTED_lafan1_detail_model_benchmark_5_0-2231.json"
     test_visualization(data_path + file_name)
 
+def visualize_original():
+    file_name = "lafan1_context_model_benchmark_30_0-2231 BENCHMARK.json"
+
+    all_global_positions, all_global_rotations = format_data(data_path + file_name)
+    rep1 = representation1(all_global_positions, all_global_rotations)
+
+    visualize_armature(rep1[650], offset=100, convert_coords=False)
+    visualize_armature(rep1[1110], offset=200, convert_coords=False)
+
 
 def visualize_from_file():
-    gt_file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231_gt (1).json"
-    file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231 (1).json"
+    gt_file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231_gt (2).json"
+    file_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231 (2).json"
+    save_name = "new_rep_6D_elbknee_lafan1_context_model_benchmark_30_0-2231_global_inferenced.json"
     rep1_gt = read_rep1(data_path + gt_file_name)
     rep1_gt = np.array(rep1_gt)
+
     rep1 = read_rep1(data_path + file_name)
     rep1 = np.array(rep1)
     print(f'rep1_gt shape: {rep1_gt.shape} rep1 shape: {rep1.shape}')
 
     rm = get_representation1_mapping()
-    print(f"inferenced pull target data: left elbow \n{rep1_gt[200, :, rm['left elbow']]}")
-    print(f"gt pull target data: left elbow \n{rep1[200, :, rm['left elbow']]}")
-    '''
-    visualize_armature(rep1[310], convert_coords=True)
-    visualize_armature(rep1[560], offset=50, convert_coords=True)
-    visualize_armature(rep1[650], offset=100, convert_coords=True)
-    visualize_armature(rep1[750], offset=150, convert_coords=True)
-    visualize_armature(rep1[850], offset=200, convert_coords=True)
-    '''
-    visualize_armature(rep1_gt[310], convert_coords=True)
-    visualize_armature(rep1_gt[560], offset=50, convert_coords=True)
-    visualize_armature(rep1_gt[650], offset=100, convert_coords=True)
-    visualize_armature(rep1_gt[750], offset=150, convert_coords=True)
-    visualize_armature(rep1_gt[850], offset=200, convert_coords=True)
+    #print(f"inferenced pull target data: left elbow \n{rep1_gt[200, :, rm['left elbow']]}")
+    #print(f"gt pull target data: left elbow \n{rep1[200, :, rm['left elbow']]}")
     
+    visualize_armature(rep1[1810], offset=100, convert_coords=True)
+    visualize_armature(rep1[1812], offset=200, convert_coords=True)
+    visualize_armature(rep1[1013], offset=300, convert_coords=True)
+    visualize_armature(rep1[518], offset=400, convert_coords=True)
+    visualize_armature(rep1[667], offset=500, convert_coords=True)
+    
+    visualize_armature(rep1_gt[1810], offset=150, convert_coords=True)
+    visualize_armature(rep1_gt[1812], offset=250, convert_coords=True)
+    visualize_armature(rep1_gt[1013], offset=350, convert_coords=True)
+    visualize_armature(rep1_gt[518], offset=450, convert_coords=True)
+    visualize_armature(rep1_gt[667], offset=550, convert_coords=True)
+    '''
+    visualize_armature(rep1_gt[650], offset=150, convert_coords=True)
+    visualize_armature(rep1_gt[750], offset=200, convert_coords=True)
+    visualize_armature(rep1_gt[850], offset=250, convert_coords=True)
+    '''
+
+    #save_final_global_positions(rep1, data_path + save_name)
+
+def save_final_global_positions(rep1, save_path):
+    rep0 = representation1_backwards(rep1)
+    rep0 = from_blend_coords(rep0)
+    rep0 = rep0.tolist()
+    rep0_dict = {'global positions': rep0}
+    with open(save_path, 'w') as file:
+        json.dump(rep0_dict, file)
+
 visualize_from_file()
 #test()
